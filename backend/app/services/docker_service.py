@@ -40,8 +40,9 @@ def deploy_container(
             name=container_name,
             detach=True,
             ports={"8000/tcp": port},
+            network="ai-document-assistant_default",
             environment={
-                "DATABASE_URL": "postgresql://postgres:password@host.docker.internal:5432/ai_assistant",
+                "DATABASE_URL": "postgresql://postgres:password@postgres:5432/ai_assistant",
                 "AZURE_OPENAI_ENDPOINT": "placeholder",
                 "AZURE_OPENAI_API_KEY": "placeholder",
                 "AZURE_OPENAI_DEPLOYMENT": "placeholder",
