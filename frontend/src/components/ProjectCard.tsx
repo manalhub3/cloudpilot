@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../api'
 
 interface Project {
@@ -24,6 +24,22 @@ export default function ProjectCard({ project }: { project: Project }) {
   const [showLogs, setShowLogs] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
+  const fetchStatus = async () => {
+    try {
+      const res = await api.get(`/projects/${project.id}/status`)
+      setDeploymentStatus(res.data)
+    } catch {
+      // no deployment yet, ignore
+    }
+  }
+
+  // Poll status every 30 seconds
+  useEffect(() => {
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 30000)
+    return () => clearInterval(interval)
+  }, [project.id])
+
   const deploy = async () => {
     setDeploying(true)
     setErrorMsg(null)
@@ -39,15 +55,6 @@ export default function ProjectCard({ project }: { project: Project }) {
       setErrorMsg(err.response?.data?.detail || 'Deployment failed')
     } finally {
       setDeploying(false)
-    }
-  }
-
-  const fetchStatus = async () => {
-    try {
-      const res = await api.get(`/projects/${project.id}/status`)
-      setDeploymentStatus(res.data)
-    } catch {
-      setErrorMsg('Could not fetch status')
     }
   }
 
@@ -76,8 +83,16 @@ export default function ProjectCard({ project }: { project: Project }) {
   const statusColor = (s: string) => {
     if (s === 'running') return 'text-green-400'
     if (s === 'stopped') return 'text-yellow-400'
+    if (s === 'unhealthy') return 'text-red-400'
     if (s === 'failed') return 'text-red-400'
     return 'text-gray-400'
+  }
+
+  const statusDot = (s: string) => {
+    if (s === 'running') return '🟢'
+    if (s === 'unhealthy') return '🔴'
+    if (s === 'stopped') return '🟡'
+    return '⚪'
   }
 
   return (
@@ -90,7 +105,7 @@ export default function ProjectCard({ project }: { project: Project }) {
         </div>
         {deploymentStatus && (
           <span className={`text-xs font-medium ${statusColor(deploymentStatus.status)}`}>
-            ● {deploymentStatus.status}
+            {statusDot(deploymentStatus.status)} {deploymentStatus.status}
           </span>
         )}
       </div>
@@ -120,7 +135,7 @@ export default function ProjectCard({ project }: { project: Project }) {
           onClick={fetchStatus}
           className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors"
         >
-          Status
+          Refresh
         </button>
         <button
           onClick={fetchLogs}

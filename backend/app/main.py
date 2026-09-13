@@ -4,6 +4,7 @@ from app.api.projects import router as projects_router
 from app.api.deployments import router as deployments_router
 from app.core import database
 from app.core.database import engine
+from app.services.health_service import start_health_checker
 
 app = FastAPI(
     title="CloudPilot",
@@ -26,6 +27,7 @@ app.include_router(deployments_router, prefix="/api")
 @app.on_event("startup")
 def startup():
     database.Base.metadata.create_all(bind=engine)
+    start_health_checker()
 
 
 @app.get("/health")
