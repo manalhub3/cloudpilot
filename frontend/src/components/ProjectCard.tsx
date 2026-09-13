@@ -16,12 +16,23 @@ interface DeploymentStatus {
   url: string | null
 }
 
+interface Deployment {
+  id: number
+  status: string
+  container_name: string
+  port: number | null
+  started_at: string
+  finished_at: string | null
+}
+
 export default function ProjectCard({ project }: { project: Project }) {
   const [deploying, setDeploying] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus | null>(null)
   const [logs, setLogs] = useState<string | null>(null)
   const [showLogs, setShowLogs] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState<Deployment[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const fetchStatus = async () => {
@@ -29,11 +40,19 @@ export default function ProjectCard({ project }: { project: Project }) {
       const res = await api.get(`/projects/${project.id}/status`)
       setDeploymentStatus(res.data)
     } catch {
-      // no deployment yet, ignore
+      // no deployment yet
     }
   }
 
-  // Poll status every 30 seconds
+  const fetchHistory = async () => {
+    try {
+      const res = await api.get(`/projects/${project.id}/deployments`)
+      setHistory(res.data)
+    } catch {
+      setErrorMsg('Could not fetch deployment history')
+    }
+  }
+
   useEffect(() => {
     fetchStatus()
     const interval = setInterval(fetchStatus, 30000)
@@ -51,6 +70,7 @@ export default function ProjectCard({ project }: { project: Project }) {
         port: res.data.port,
         url: res.data.url,
       })
+      fetchHistory()
     } catch (err: any) {
       setErrorMsg(err.response?.data?.detail || 'Deployment failed')
     } finally {
@@ -80,6 +100,11 @@ export default function ProjectCard({ project }: { project: Project }) {
     }
   }
 
+  const toggleHistory = () => {
+    if (!showHistory) fetchHistory()
+    setShowHistory(prev => !prev)
+  }
+
   const statusColor = (s: string) => {
     if (s === 'running') return 'text-green-400'
     if (s === 'stopped') return 'text-yellow-400'
@@ -92,6 +117,7 @@ export default function ProjectCard({ project }: { project: Project }) {
     if (s === 'running') return '🟢'
     if (s === 'unhealthy') return '🔴'
     if (s === 'stopped') return '🟡'
+    if (s === 'failed') return '🔴'
     return '⚪'
   }
 
@@ -150,7 +176,47 @@ export default function ProjectCard({ project }: { project: Project }) {
         >
           {stopping ? 'Stopping...' : 'Stop'}
         </button>
+        <button
+          onClick={toggleHistory}
+          className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          {showHistory ? 'Hide History' : 'History'}
+        </button>
       </div>
+
+      {showHistory && (
+        <div className="mt-4">
+          <p className="text-xs text-gray-500 mb-2">Deployment history</p>
+          {history.length === 0 ? (
+            <p className="text-xs text-gray-600">No deployments yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {history.map(dep => (
+                <li key={dep.id} className="bg-gray-950 border border-gray-800 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-300">
+                      Deployment #{dep.id}
+                    </span>
+                    <span className={`text-xs font-medium ${statusColor(dep.status)}`}>
+                      {statusDot(dep.status)} {dep.status}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex gap-4">
+                    <span className="text-xs text-gray-600">
+                      Started: {new Date(dep.started_at).toLocaleString()}
+                    </span>
+                    {dep.port && (
+                      <span className="text-xs text-gray-600">
+                        Port: {dep.port}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {showLogs && logs && (
         <div className="mt-4">
